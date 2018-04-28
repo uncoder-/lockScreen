@@ -76,7 +76,7 @@ function LockScreen(config) {
     function drawMoveLine(fooDots, selectDots, end) {
         // 校验是否全部已选
         if (fooDots.length == selectDots.length) { return; }
-        
+
         myCtx.save();
         myCtx.strokeStyle = 'red';
         // 运动画线
