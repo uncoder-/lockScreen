@@ -1,131 +1,158 @@
-
-function LockScreen(config) {
-    var SW = window.innerWidth;
-    var config = config;
-    var myCanvas = document.querySelector(config.el);
-    myCanvas.setAttribute('height', SW);
-    myCanvas.setAttribute('width', SW);
-    var myCtx = myCanvas.getContext('2d');
-    // 配置、
-    var col = 3;
-    var row = 3;
-    var width = SW / 3;
-    var radius = 30;
-    var selectDots = [];
-    // 生成点集、
-    function generateDots() {
-        let dots = [];
-        for (let i = 0; i < col; i++) {
-            for (let j = 0; j < row; j++) {
-                let dot = {};
-                dot.index = i * 3 + j;
-                dot.x = width * j + width / 2;
-                dot.y = width * (i + 1) - width / 2;
-                dot.radius = radius;
-                dot.select = false;
-                dot.area = { x0: dot.x - radius, y0: dot.y - radius, x1: dot.x + radius, y1: dot.y + radius };
+function createLockScreen(config) {
+    // 点
+    function Dot(x, y, index, radius) {
+        const d = {};
+        d.index = index;
+        d.x = x;
+        d.y = y;
+        d.radius = radius;
+        d.rectArea = { x0: x - radius, y0: y - radius, x1: x + radius, y1: y + radius }
+        return d;
+    }
+    // 生成点
+    function genarateDots(realSize) {
+        const size = realSize / 3;
+        const radius = size * 0.4;
+        const dots = [];
+        for (let i = 0; i < 3; i++) {
+            for (let j = 0; j < 3; j++) {
+                const index = i * 3 + j;
+                const x = size * j + size / 2;
+                const y = size * (i + 1) - size / 2;
+                const dot = Dot(x, y, index, radius);
                 dots.push(dot);
+                strokeDot(dot, { color: '#999', lineWidth: 2 });
             }
         }
-        console.log(dots);
-        return dots;
+        // 缓存
+        const bgCache = ctx.getImageData(0, 0, realSize, realSize);
+        ctx.clearRect(0, 0, realSize, realSize);
+        return { dots, bgCache };
     }
-    // 画圈、
-    function drawCircle(dots) {
-        myCtx.clearRect(0, 0, SW, SW);
-        for (let i = 0; i < dots.length; i++) {
-            // console.log(dots[i].x, dots[i].y, dots[i].radius)
-            if (dots[i].select) {
-                myCtx.save();
-                myCtx.strokeStyle = 'red';
-                myCtx.beginPath();
-                myCtx.arc(dots[i].x, dots[i].y, 10, 0, 2 * Math.PI);
-                myCtx.stroke();
-
-                myCtx.beginPath();
-                myCtx.arc(dots[i].x, dots[i].y, dots[i].radius, 0, 2 * Math.PI);
-                myCtx.stroke();
-                myCtx.restore();
-            } else {
-                myCtx.beginPath();
-                myCtx.arc(dots[i].x, dots[i].y, dots[i].radius, 0, 2 * Math.PI);
-                myCtx.closePath();
-                myCtx.stroke();
-            }
-        }
-    }
-    function drawHistoryLine(selectDots) {
-        myCtx.save();
-        myCtx.strokeStyle = 'red';
-        //历史画线
-        if (selectDots.length >= 2) {
-            for (let i = 0; i < selectDots.length - 1; i++) {
-                let startDot = fooDots[selectDots[i]];
-                let endDot = fooDots[selectDots[i + 1]];
-
-                myCtx.beginPath();
-                myCtx.moveTo(startDot.x, startDot.y);
-                myCtx.lineTo(endDot.x, endDot.y);
-                myCtx.closePath();
-                myCtx.stroke();
-            }
-        }
-        myCtx.restore();
+    // 画点
+    function strokeDot(dot, style) {
+        // 画点
+        ctx.save();
+        ctx.strokeStyle = style ? style.color : defaultStyle.color;
+        ctx.lineWidth = style ? style.lineWidth : defaultStyle.lineWidth;
+        ctx.beginPath();
+        ctx.arc(dot.x, dot.y, dot.radius, 0, 2 * Math.PI);
+        ctx.closePath();
+        ctx.stroke();
+        ctx.restore();
     }
     // 画线
-    function drawMoveLine(fooDots, selectDots, end) {
-        // 校验是否全部已选
-        if (fooDots.length == selectDots.length) { return; }
-
-        myCtx.save();
-        myCtx.strokeStyle = 'red';
-        // 运动画线
-        var start = fooDots[selectDots[selectDots.length - 1]];
-
-        myCtx.beginPath();
-        myCtx.moveTo(start.x, start.y)
-        myCtx.lineTo(end.clientX, end.clientY)
-        myCtx.closePath();
-
-        myCtx.stroke();
-        myCtx.restore();
+    function strokeLine(lastPoint, eventPoint) {
+        ctx.save();
+        ctx.strokeStyle = defaultStyle.color;
+        ctx.lineWidth = defaultStyle.lineWidth;
+        ctx.beginPath();
+        ctx.moveTo(lastPoint.x, lastPoint.y);
+        ctx.lineTo(eventPoint.x, eventPoint.y);
+        ctx.closePath();
+        ctx.stroke();
+        ctx.restore();
     }
-    // 检测触点是否在圈内
-    function dotTest(dots, touchPoint) {
-        let index = '';
-        let x = touchPoint.clientX;
-        let y = touchPoint.clientY;
+    // 相对位置换算真实位置
+    function returnRealPosition(event) {
+        const { type, targetTouches, target } = event;
+        const { left, top } = target.getBoundingClientRect();
+        const touchPoint = targetTouches[0];
+        const x = (touchPoint.clientX - left) * radio;
+        const y = (touchPoint.clientY - top) * radio;
+        return { x, y };
+    }
+    // 触点位置
+    function isInArea(event) {
+        const { x, y } = returnRealPosition(event);
+        let dot = null;
         for (let i = 0; i < dots.length; i++) {
-            let item = dots[i];
-            if (x > item.area.x0 && x < item.area.x1 && y > item.area.y0 && y < item.area.y1 && !item.select) {
-                // console.log('true');
-                item.select = true;
-                selectDots.push(item.index);
+            const { x0, y0, x1, y1 } = dots[i].rectArea;
+            if (x0 <= x && x <= x1 && y0 <= y && y <= y1) {
+                dot = dots[i];
+                break;
             }
         }
-        return dots;
+        return dot;
     }
-    // 程序运行起点、
-    var dots = generateDots();
-    var fooDots = JSON.parse(JSON.stringify(dots));
-    drawCircle(dots);
-    // 绑定事件、
-    myCanvas.addEventListener("touchstart", function (event) {
-        // console.log('start');
-        fooDots = dotTest(fooDots, event.touches[0]);
-        drawCircle(fooDots);
-    });
-    myCanvas.addEventListener("touchmove", function (event) {
-        // console.log('move');
-        fooDots = dotTest(fooDots, event.touches[0]);
-        drawCircle(fooDots);
-        drawHistoryLine(selectDots);
-        drawMoveLine(fooDots, selectDots, event.touches[0]);
-        // console.log(,event.touches[0]);
-        // drawLine(event.touches[0].clientX,event.touches[0].clientY)
-    });
-    myCanvas.addEventListener("touchend", function (event) {
-        drawCircle(fooDots);
-        drawHistoryLine(selectDots);
-    });
+    // 清空
+    function clear() {
+        ctx.putImageData(bgCache, 0, 0);
+    }
+    // 事件绑定
+    function touchstart(event) {
+        const point = isInArea(event);
+        if (!touchStatus && point) {
+            touchStatus = true;
+            selectPointsArry.push(point);
+            strokeDot(point);
+            drawCache = ctx.getImageData(0, 0, realSize, realSize);
+        }
+        console.log("start");
+    }
+    function touchmove(event) {
+        if (touchStatus) {
+            // 恢复
+            ctx.putImageData(drawCache, 0, 0);
+            const point = isInArea(event);
+            if (point && !selectPointsArry.find(item => item.index == point.index)) {
+                selectPointsArry.push(point);
+                for (let i = 0; i < selectPointsArry.length; i++) {
+                    strokeDot(point);
+                    if (selectPointsArry[i + 1]) {
+                        strokeLine(selectPointsArry[i], selectPointsArry[i + 1]);
+                    }
+                }
+                drawCache = ctx.getImageData(0, 0, realSize, realSize);
+            } else if (!point && selectPointsArry.length < 9) {
+                const { x, y } = returnRealPosition(event);
+                strokeLine(selectPointsArry.slice(-1)[0], { x, y });
+            }
+        }
+        console.log("move");
+    }
+    function touchend(event) {
+        if (touchStatus) {
+            console.log("end");
+            touchStatus = false;
+        }
+    }
+    function touchcancel(event) {
+        if (touchStatus) {
+            console.log("cancel");
+            touchStatus = false;
+        }
+    }
+    const addEvent = (el) => {
+        el.addEventListener("touchstart", touchstart);
+        el.addEventListener("touchmove", touchmove);
+        el.addEventListener("touchend", touchend);
+        el.addEventListener("touchcancel", touchcancel);
+    }
+    // 故事从此行开始。
+    const canvas = document.createElement('canvas');
+    const { container, width } = config;
+    const defaultStyle = { color: 'red', lineWidth: 1, ...config.style };
+    const radio = window.devicePixelRatio || 2;
+    const realSize = width * radio;
+    canvas.setAttribute('width', realSize);
+    canvas.setAttribute('height', realSize);
+    canvas.style.width = `${width}px`;
+    canvas.style.height = `${width}px`;
+    const ctx = canvas.getContext('2d');
+    const { bgCache, dots } = genarateDots(realSize);
+    ctx.putImageData(bgCache, 0, 0);
+    // 定义事件变量
+    let touchStatus = false;
+    let selectPointsArry = [];
+    let drawCache = null;
+    // 监听
+    addEvent(canvas);
+    // 插入
+    container.appendChild(canvas);
+    return {
+        clear
+    }
 }
+
+// export default { createLockScreen }
