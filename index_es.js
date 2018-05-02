@@ -33,8 +33,8 @@ function createLockScreen(config) {
     function strokeDot(dot, style) {
         // 画点
         ctx.save();
-        ctx.strokeStyle = style.color;
-        ctx.lineWidth = style.lineWidth || 1;
+        ctx.strokeStyle = style ? style.color : defaultStyle.color;
+        ctx.lineWidth = style ? style.lineWidth : defaultStyle.lineWidth;
         ctx.beginPath();
         ctx.arc(dot.x, dot.y, dot.radius, 0, 2 * Math.PI);
         ctx.closePath();
@@ -42,10 +42,10 @@ function createLockScreen(config) {
         ctx.restore();
     }
     // 画线
-    function strokeLine(lastPoint, eventPoint, style) {
+    function strokeLine(lastPoint, eventPoint) {
         ctx.save();
-        ctx.strokeStyle = style.color;
-        ctx.lineWidth = style.lineWidth;
+        ctx.strokeStyle = defaultStyle.color;
+        ctx.lineWidth = defaultStyle.lineWidth;
         ctx.beginPath();
         ctx.moveTo(lastPoint.x, lastPoint.y);
         ctx.lineTo(eventPoint.x, eventPoint.y);
@@ -77,34 +77,33 @@ function createLockScreen(config) {
     }
     // 事件绑定
     function touchstart(event) {
-        if (!touchStatus) {
+        const point = isInArea(event);
+        if (!touchStatus && point) {
             touchStatus = true;
-            const point = isInArea(event);
-            if (point) {
-                selectPointsArry.push(point);
-                strokeDot(point, { color: 'red', lineWidth: 4 });
-                drawCache = ctx.getImageData(0, 0, realSize, realSize);
-            }
+            selectPointsArry.push(point);
+            strokeDot(point);
+            drawCache = ctx.getImageData(0, 0, realSize, realSize);
         }
         console.log("start");
     }
+
     function touchmove(event) {
         if (touchStatus) {
             // 恢复
             ctx.putImageData(drawCache, 0, 0);
             const point = isInArea(event);
-            if (point) {
+            if (point && !selectPointsArry.find(item => item.index == point.index)) {
                 selectPointsArry.push(point);
                 for (let i = 0; i < selectPointsArry.length; i++) {
-                    strokeDot(point, { color: 'red', lineWidth: 4 });
+                    strokeDot(point);
                     if (selectPointsArry[i + 1]) {
-                        strokeLine(selectPointsArry[i], selectPointsArry[i + 1], { color: 'red', lineWidth: 4 });
+                        strokeLine(selectPointsArry[i], selectPointsArry[i + 1]);
                     }
                 }
                 drawCache = ctx.getImageData(0, 0, realSize, realSize);
-            } else {
+            } else if (!point && selectPointsArry.length < 9) {
                 const { x, y } = returnRealPosition(event);
-                strokeLine(selectPointsArry.slice(-1)[0], { x, y }, { color: 'red', lineWidth: 4 });
+                strokeLine(selectPointsArry.slice(-1)[0], { x, y });
             }
         }
         console.log("move");
@@ -130,6 +129,7 @@ function createLockScreen(config) {
     // 故事从此行开始。
     const canvas = document.createElement('canvas');
     const { container, width } = config;
+    const defaultStyle = { color: 'red', lineWidth: 1, ...config.style };
     const radio = window.devicePixelRatio || 2;
     const realSize = width * radio;
     canvas.setAttribute('width', realSize);
