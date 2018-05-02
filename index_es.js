@@ -1,17 +1,33 @@
-createLockScreen({
-    container: document.body,
-    width: 250,
-});
-
 function createLockScreen(config) {
     // 点
-    function Dot(x, y, radius) {
+    function Dot(x, y, index, radius) {
         const d = {};
+        d.index = index;
         d.x = x;
         d.y = y;
         d.radius = radius;
-        d.areaReact = { x0: x - radius, y0: y - radius, x1: x + radius, y1: y + radius }
+        d.rectArea = { x0: x - radius, y0: y - radius, x1: x + radius, y1: y + radius }
         return d;
+    }
+    // 生成点
+    function genarateDots(realSize) {
+        const size = realSize / 3;
+        const radius = size * 0.4;
+        const dots = [];
+        for (let i = 0; i < 3; i++) {
+            for (let j = 0; j < 3; j++) {
+                const index = i * 3 + j;
+                const x = size * j + size / 2;
+                const y = size * (i + 1) - size / 2;
+                const dot = Dot(x, y, index, radius);
+                dots.push(dot);
+                strokeDot(dot, { color: '#999', lineWidth: 2 });
+            }
+        }
+        // 缓存
+        const bgCache = ctx.getImageData(0, 0, realSize, realSize);
+        ctx.clearRect(0, 0, realSize, realSize);
+        return { dots, bgCache };
     }
     // 画点
     function strokeDot(dot, style) {
@@ -25,74 +41,108 @@ function createLockScreen(config) {
         ctx.stroke();
         ctx.restore();
     }
-    // 背景
-    function genarateBackground(realSize) {
-        const size = realSize / 3;
-        const radius = size * 0.3;
-        const bgDots = [];
-        for (let i = 0; i < 3; i++) {
-            for (let j = 0; j < 3; j++) {
-                const x = size * j + size / 2;
-                const y = size * (i + 1) - size / 2;
-                const dot = Dot(x, y, radius);
-                bgDots.push(dot);
-                strokeDot(dot, { color: '#999', lineWidth: 4 });
-            }
-        }
-        // 缓存
-        const bgCache = ctx.getImageData(0, 0, realSize, realSize);
-        ctx.clearRect(0, 0, realSize, realSize);
-        return { bgDots, bgCache };
+    // 画线
+    function strokeLine(lastPoint, eventPoint, style) {
+        ctx.save();
+        ctx.strokeStyle = style.color;
+        ctx.lineWidth = style.lineWidth;
+        ctx.beginPath();
+        ctx.moveTo(lastPoint.x, lastPoint.y);
+        ctx.lineTo(eventPoint.x, eventPoint.y);
+        ctx.closePath();
+        ctx.stroke();
+        ctx.restore();
     }
-    // 检测触点位置
-    function checkPointPosition(event) {
+    // 相对位置换算真实位置
+    function returnRealPosition(event) {
         const { type, targetTouches, target } = event;
         const { left, top } = target.getBoundingClientRect();
         const touchPoint = targetTouches[0];
-        console.log(touchPoint.clientX - left) * radio, (touchPoint.clientY - top) * radio;
+        const x = (touchPoint.clientX - left) * radio;
+        const y = (touchPoint.clientY - top) * radio;
+        return { x, y };
+    }
+    // 触点位置
+    function isInArea(event) {
+        const { x, y } = returnRealPosition(event);
+        let dot = null;
+        for (let i = 0; i < dots.length; i++) {
+            const { x0, y0, x1, y1 } = dots[i].rectArea;
+            if (x0 <= x && x <= x1 && y0 <= y && y <= y1) {
+                dot = dots[i];
+                break;
+            }
+        }
+        return dot;
     }
     // 事件绑定
-    function addEvent(el) {
-        el.addEventListener("touchstart", (event) => {
-            event.preventDefault()
-            event.stopPropagation();
-            return false;
-            // if (true) {
-            //     event.stopPropagation()
-            //     event.stopImmediatePropagation();
-            //     // debugger
-            //     return false;
-            // }
-            // touchStatus = true;
-            // checkPointPosition(event);
-            // debugger
-            // console.log("start");
-        });
-        el.addEventListener("touchmove", (event) => {
-            console.log("move");
-        });
-        el.addEventListener("touchend", (event) => {
-            console.log("end");
-        });
+    function touchstart(event) {
+        if (!touchStatus) {
+            touchStatus = true;
+            const point = isInArea(event);
+            if (point) {
+                selectPointsArry.push(point);
+                strokeDot(point, { color: 'red', lineWidth: 4 });
+                drawCache = ctx.getImageData(0, 0, realSize, realSize);
+            }
+        }
+        console.log("start");
     }
-
-    // 故事从此行开始。。。。。。。。。。。。。。。。。。
+    function touchmove(event) {
+        if (touchStatus) {
+            // 恢复
+            ctx.putImageData(drawCache, 0, 0);
+            const point = isInArea(event);
+            if (point) {
+                selectPointsArry.push(point);
+                for (let i = 0; i < selectPointsArry.length; i++) {
+                    strokeDot(point, { color: 'red', lineWidth: 4 });
+                    if (selectPointsArry[i + 1]) {
+                        strokeLine(selectPointsArry[i], selectPointsArry[i + 1], { color: 'red', lineWidth: 4 });
+                    }
+                }
+                drawCache = ctx.getImageData(0, 0, realSize, realSize);
+            } else {
+                const { x, y } = returnRealPosition(event);
+                strokeLine(selectPointsArry.slice(-1)[0], { x, y }, { color: 'red', lineWidth: 4 });
+            }
+        }
+        console.log("move");
+    }
+    function touchend(event) {
+        if (touchStatus) {
+            console.log("end");
+            touchStatus = false;
+        }
+    }
+    function touchcancel(event) {
+        if (touchStatus) {
+            console.log("cancel");
+            touchStatus = false;
+        }
+    }
+    const addEvent = (el) => {
+        el.addEventListener("touchstart", touchstart);
+        el.addEventListener("touchmove", touchmove);
+        el.addEventListener("touchend", touchend);
+        el.addEventListener("touchcancel", touchcancel);
+    }
+    // 故事从此行开始。
     const canvas = document.createElement('canvas');
     const { container, width } = config;
     const radio = window.devicePixelRatio || 2;
     const realSize = width * radio;
     canvas.setAttribute('width', realSize);
     canvas.setAttribute('height', realSize);
-    // canvas.style.width = `${width}px`;
-    // canvas.style.height = `${width}px`;
-    const scale = 1 / radio;
-    canvas.style.transform = `scale(${scale})translate(-${scale * 100}%,-${scale * 100}%)`;
+    canvas.style.width = `${width}px`;
+    canvas.style.height = `${width}px`;
     const ctx = canvas.getContext('2d');
-    const { bgCache, bgDots } = genarateBackground(realSize);
-    ctx.putImageData(bgCache, 0, 0)
+    const { bgCache, dots } = genarateDots(realSize);
+    ctx.putImageData(bgCache, 0, 0);
     // 定义事件变量
-    let touchStatus = true;
-    let touchPoint = null;
+    let touchStatus = false;
+    let selectPointsArry = [];
+    let drawCache = null;
     // 监听
     addEvent(canvas);
     // 插入
