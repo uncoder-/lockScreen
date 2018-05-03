@@ -16,7 +16,7 @@ function createLockScreen(config) {
         const dots = [];
         for (let i = 0; i < 3; i++) {
             for (let j = 0; j < 3; j++) {
-                const index = i * 3 + j;
+                const index = i * 3 + j + 1;
                 const x = size * j + size / 2;
                 const y = size * (i + 1) - size / 2;
                 const dot = Dot(x, y, index, radius);
@@ -75,6 +75,32 @@ function createLockScreen(config) {
         }
         return dot;
     }
+    // 九宫格返回某个数字（上/下/左/右）得数字
+    function returnAroundNumber(number) {
+        // 行
+        const row = parseInt(number / 3);
+        // 列
+        const column = parseInt(number % 3);
+        // console.log("number位置", row, column);
+        let top = 0, left = 0, right = 0, bottom = 0;
+        // 上面
+        if (row != 0) {
+            top = (row - 1) * 3 + column;
+        }
+        // 下面
+        if (row != 2) {
+            bottom = (row + 1) * 3 + column;
+        }
+        // 左边
+        if (column != 0) {
+            left = number - 1;
+        }
+        // 右边
+        if (column != 2) {
+            right = number + 1;
+        }
+        return [top, right, bottom, left]
+    }
     // 清空
     function clear() {
         ctx.putImageData(bgCache, 0, 0);
@@ -88,14 +114,19 @@ function createLockScreen(config) {
             strokeDot(point);
             drawCache = ctx.getImageData(0, 0, realSize, realSize);
         }
-        console.log("start");
+        // console.log("start");
     }
     function touchmove(event) {
         if (touchStatus) {
             // 恢复
             ctx.putImageData(drawCache, 0, 0);
             const point = isInArea(event);
-            if (point && !selectPointsArry.find(item => item.index == point.index)) {
+            if (point) {
+                // 检测触点索引是否已经在列表里了
+                if (selectPointsArry.find(item => item.index == point.index)) {
+                    return;
+                }
+                // 加入索引
                 selectPointsArry.push(point);
                 for (let i = 0; i < selectPointsArry.length; i++) {
                     strokeDot(point);
@@ -109,19 +140,24 @@ function createLockScreen(config) {
                 strokeLine(selectPointsArry.slice(-1)[0], { x, y });
             }
         }
-        console.log("move");
+        // console.log("move");
     }
     function touchend(event) {
         if (touchStatus) {
-            console.log("end");
             touchStatus = false;
+            if (selectPointsArry.length < 9) {
+                clear();
+            } else {
+                // success
+                const result = selectPointsArry.map(item => item.index);
+                callback(result)
+            }
+            // console.log("end");
         }
     }
     function touchcancel(event) {
-        if (touchStatus) {
-            console.log("cancel");
-            touchStatus = false;
-        }
+        touchend(event);
+        // console.log("cancel");
     }
     const addEvent = (el) => {
         el.addEventListener("touchstart", touchstart);
@@ -129,20 +165,24 @@ function createLockScreen(config) {
         el.addEventListener("touchend", touchend);
         el.addEventListener("touchcancel", touchcancel);
     }
+
     // 故事从此行开始。
     const canvas = document.createElement('canvas');
-    const { container, width } = config;
+    const { container, width, callback } = config;
     const defaultStyle = { color: 'red', lineWidth: 1, ...config.style };
     const radio = window.devicePixelRatio || 2;
-    const realSize = width * radio;
+    const realSize = (width >= 406 ? 406 : width) * radio;
     canvas.setAttribute('width', realSize);
     canvas.setAttribute('height', realSize);
-    canvas.style.width = `${width}px`;
-    canvas.style.height = `${width}px`;
+    // 高清
+    canvas.style.width = `${realSize / radio}px`;
+    canvas.style.height = `${realSize / radio}px`;
+
     const ctx = canvas.getContext('2d');
     const { bgCache, dots } = genarateDots(realSize);
+    // 初始化渲染
     ctx.putImageData(bgCache, 0, 0);
-    // 定义事件变量
+    // 声明事件需要的变量
     let touchStatus = false;
     let selectPointsArry = [];
     let drawCache = null;
