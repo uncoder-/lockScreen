@@ -4,15 +4,15 @@
 # 使用方法
 
 ```js
-const lockScreen = createLockScreen({
+const unlockScreen = createUnLockScreen({
     container: document.body,
-    width: 258,
+    width: window.innerWidth,
     style: {
         color: 'blue',
         lineWidth: 2
     },
     callback: (rel) => {
-        console.log("结果", rel);
+        console.log("ahhhhhh", rel);
     }
 });
 ```

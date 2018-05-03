@@ -1,4 +1,4 @@
-function createLockScreen(config) {
+function createUnLockScreen(config) {
     // 点
     function Dot(x, y, index, radius) {
         const d = {};
@@ -194,5 +194,3 @@ function createLockScreen(config) {
         clear
     }
 }
-
-// export default { createLockScreen }
