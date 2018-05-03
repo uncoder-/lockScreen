@@ -3,7 +3,7 @@
 
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, max-scale=1.0, min-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta http-equiv="X-UA-Compatible" content="ie=edge">
     <title>屏幕解锁</title>
     <style>
@@ -31,7 +31,7 @@
     <script>
         const lockScreen = createLockScreen({
             container: document.body,
-            width: 250,
+            width: window.innerWidth,
             style: {
                 color: 'blue',
                 lineWidth: 2
