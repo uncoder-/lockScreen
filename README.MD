@@ -1,6 +1,8 @@
 # 说明
-九宫格解锁
 
+九宫格解锁，不支持pc
+
+演示[demo](https://uncoder-fe.github.io/unlock-screen/)
 # 使用方法
 
 ```js
